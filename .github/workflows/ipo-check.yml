@@ -1,0 +1,42 @@
+name: IPO Auto-Apply
+
+on:
+  schedule:
+    # Once a day at 04:30 UTC = 10:15 AM NPT, Mon/Wed/Fri
+    - cron: '30 4 * * 1,3,5'
+  workflow_dispatch:   # run manually from the Actions tab any time
+
+jobs:
+  ipo-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15   # kill the job if it hangs
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ hashFiles('requirements.txt') }}
+
+      - name: Install Playwright Chromium + system deps
+        run: python -m playwright install --with-deps chromium
+
+      - name: Write config.yaml from secret
+        env:
+          CONFIG_YAML: ${{ secrets.CONFIG_YAML }}
+        run: python -c "import os; open('config.yaml','w').write(os.environ['CONFIG_YAML'])"
+
+      - name: Run IPO check
+        run: python src/meroshare/check.py
